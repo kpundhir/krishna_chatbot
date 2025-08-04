@@ -1,11 +1,8 @@
-# scripts/search_interface.py
-
 import numpy as np
 import faiss
 import os
 from sentence_transformers import SentenceTransformer
 
-# Paths
 INDEX_PATH = os.path.join("..", "embeddings", "gita_faiss.index")
 TEXT_PATH = os.path.join("..", "embeddings", "citation_texts.npy")
 
@@ -19,14 +16,13 @@ def search(query, top_k=3):
     index, texts, model = load_index()
     query_vec = model.encode([query])
     D, I = index.search(np.array(query_vec), top_k)
-    print("\n🔍 Top Matches:")
     for i in I[0]:
-        print("\n---")
         print(texts[i])
+        print("---")
 
 if __name__ == "__main__":
     while True:
-        query = input("\nAsk a question (or type 'exit'): ")
+        query = input("Query (or 'exit'): ")
         if query.lower() == 'exit':
             break
         search(query)

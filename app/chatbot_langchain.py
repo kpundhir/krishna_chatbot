@@ -1,55 +1,67 @@
 import os
-import numpy as np
-import faiss
 from dotenv import load_dotenv
 
-from langchain_core.documents import Document
 from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.docstore.in_memory import InMemoryDocstore
+from langchain_huggingface import HuggingFaceEmbeddings
+from huggingface_hub import InferenceClient
 
-# --- Load environment variables ---
 load_dotenv()
+HF_TOKEN = os.getenv("HUGGINGFACE_TOKEN")
 
-# --- Load citation texts and FAISS index ---
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-EMBEDDINGS_DIR = os.path.join(BASE_DIR, "embeddings")
-TEXTS_PATH = os.path.join(EMBEDDINGS_DIR, "citation_texts.npy")
-INDEX_PATH = os.path.join(EMBEDDINGS_DIR, "gita_faiss.index")
+embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
-citation_texts = np.load(TEXTS_PATH, allow_pickle=True).tolist()
-faiss_index = faiss.read_index(INDEX_PATH)
-
-# --- Embedding model ---
-embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-
-# --- Reconstruct document store ---
-documents = [Document(page_content=text) for text in citation_texts]
-docstore = InMemoryDocstore({str(i): doc for i, doc in enumerate(documents)})
-index_to_docstore_id = {i: str(i) for i in range(len(documents))}
-
-# --- Vectorstore ---
-vectorstore = FAISS(
-    index=faiss_index,
-    docstore=docstore,
-    index_to_docstore_id=index_to_docstore_id,
-    embedding_function=embedding_model
+faiss_index = FAISS.load_local(
+    "embeddings/gita_faiss_index",
+    embeddings=embedding_model,
+    allow_dangerous_deserialization=True
 )
 
-retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
+model_name = "mistralai/Mistral-7B-Instruct-v0.1"
+client = InferenceClient(model=model_name, token=HF_TOKEN)
 
-# --- Inference Loop ---
-def main():
-    print("📿 Krishna Retrieval Tool (No LLM). Ask your question (type 'exit' to quit).")
-    while True:
-        query = input("\nYour question: ")
-        if query.lower() in ["exit", "quit"]:
-            print("🙏 Thank you. May Krishna's wisdom guide you.")
-            break
-        docs = retriever.get_relevant_documents(query)
-        print("\n🔍 Top Matching Verses:\n")
-        for i, doc in enumerate(docs, 1):
-            print(f"{i}. {doc.page_content}\n")
+def get_top_verse(query, k=1):
+    docs = faiss_index.similarity_search(query, k=k)
+    return docs[0].page_content if docs else "No verse found."
+
+def ask_krishna(query, retrieved_verse):
+    prompt = f"""
+You are Lord Krishna explaining the Bhagavad Gita to Arjuna.
+Speak in a calm, wise, and spiritually grounded tone.
+Use the following verse as your base for the answer.
+
+Verse: {retrieved_verse}
+
+Question: {query}
+
+Answer:
+    """
+    try:
+        response = client.text_generation(
+            prompt,
+            max_new_tokens=200,
+            temperature=0.7,
+            repetition_penalty=1.1
+        )
+        if not response.strip():
+            return "Model returned an empty response."
+        return response.strip().split("Answer:")[-1].strip()
+    except Exception as e:
+        return f"HuggingFace Inference API failed: {e}"
 
 if __name__ == "__main__":
-    main()
+    print("Welcome to the Krishna Chatbot.")
+    while True:
+        try:
+            user_input = input("\nYour Question (or 'exit'): ")
+            if user_input.lower() in ["exit", "quit"]:
+                print("Jai Shri Krishna!")
+                break
+
+            top_verse = get_top_verse(user_input)
+            print(f"\nClosest Verse: {top_verse}")
+
+            response = ask_krishna(user_input, top_verse)
+            print(f"\nKrishna's Response:\n{response}")
+
+        except Exception as e:
+            print(f"Error: {e}")

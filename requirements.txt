@@ -1,9 +1,8 @@
-langchain
-langchain-community
-langchain-huggingface
-openai
-faiss-cpu
-sentence-transformers
-numpy
-pandas
-python-dotenv
+langchain>=0.1.0
+langchain-community>=0.0.21
+langchain-huggingface>=0.0.6
+faiss-cpu>=1.7.4
+sentence-transformers>=2.2.2
+transformers>=4.35.0
+huggingface_hub>=0.18.0
+python-dotenv>=1.0.0
